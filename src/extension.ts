@@ -1,26 +1,30 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
+import * as helper from "./helper";
 
-// this method is called when your extension is activated
-// your extension is activated the very first time the command is executed
+const editor = vscode.window.activeTextEditor as vscode.TextEditor;
+const doc = editor.document;
+const cursor = editor.selection.active;
+
 export function activate(context: vscode.ExtensionContext) {
-	
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "vimwizard" is now active!');
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	let disposable = vscode.commands.registerCommand('vimwizard.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from VimWizard!');
+	let vimOperations = vscode.commands.registerCommand('vimwizard.vimOperations', async () => {
+		let userInput = await helper.getUserInput();
+		if (!userInput){vscode.window.showErrorMessage("Operation Cancelled!");return;}
+		else{
+			let command = helper.parseCommand(userInput);
+			if(command){
+				if (command.action === helper.Action.copy){helper.performCopyAction(command.text);}
+				else if (command.action === helper.Action.cut){helper.performCutAction(command.text);}
+				else if (command.action === helper.Action.paste){helper.performPasteAction(command.text);}
+				else{
+					vscode.window.showErrorMessage("Could not understand the command!");
+				}				
+			}
+		}
 	});
 
-	context.subscriptions.push(disposable);
+	
+	context.subscriptions.push(vimOperations);
 }
 
-// this method is called when your extension is deactivated
 export function deactivate() {}

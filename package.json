@@ -3,6 +3,11 @@
   "displayName": "VimWizard",
   "description": "Extension to perform some basic VIM commands.",
   "version": "0.0.1",
+  "author": "Stranger",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lokeshlkr/vimwizard.git"
+  },
   "engines": {
     "vscode": "^1.69.0"
   },
@@ -10,14 +15,14 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:vimwizard.helloWorld"
+    "onCommand:vimwizard.vimOperations"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "vimwizard.helloWorld",
-        "title": "Hello World"
+        "command": "vimwizard.vimOperations",
+        "title": "vimwizard: Perfom a VIM operation"
       }
     ]
   },
