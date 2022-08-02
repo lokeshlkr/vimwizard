@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.performPasteAction = exports.performCutAction = exports.performCopyAction = exports.Section = exports.parseCommand = exports.getStopPosition = exports.getStartPosition = exports.textObjectBox = exports.modifierBox = exports.actionBox = exports.wrapperBox = exports.TextObject = exports.Modifier = exports.Action = exports.getUserInput = exports.clipboard = exports.getCurrentLine = exports.getCurrentWord = exports.getTextFromOffsets = exports.getTextFromPositions = void 0;
+exports.performPasteAction = exports.performCutAction = exports.performCopyAction = exports.Section = exports.parseCommand = exports.getStopPosition = exports.getStartPosition = exports.actionBox = exports.wrapperBox = exports.Action = exports.getUserInput = exports.clipboard = exports.getCurrentLine = exports.getCurrentWord = exports.getTextFromOffsets = exports.getTextFromPositions = void 0;
 const vscode = require("vscode");
 const editor = vscode.window.activeTextEditor;
 const doc = editor.document;
@@ -66,17 +66,6 @@ var Action;
     Action["copy"] = "COPY";
     Action["paste"] = "PASTE";
 })(Action = exports.Action || (exports.Action = {}));
-var Modifier;
-(function (Modifier) {
-    Modifier["inside"] = "INSIDE";
-    Modifier["around"] = "AROUND";
-    Modifier["till"] = "TILL";
-})(Modifier = exports.Modifier || (exports.Modifier = {}));
-var TextObject;
-(function (TextObject) {
-    TextObject["word"] = "WORD";
-    TextObject["line"] = "LINE";
-})(TextObject = exports.TextObject || (exports.TextObject = {}));
 exports.wrapperBox = new Map([
     ["{", { start: "{", stop: "}" }],
     ["}", { start: "{", stop: "}" }],
@@ -92,15 +81,6 @@ exports.actionBox = new Map([
     ["d", Action.cut],
     ["y", Action.copy],
     ["p", Action.paste],
-]);
-exports.modifierBox = new Map([
-    ["i", Modifier.inside],
-    ["a", Modifier.around],
-    ["t", Modifier.till],
-]);
-exports.textObjectBox = new Map([
-    ["w", TextObject.word],
-    ["l", TextObject.line],
 ]);
 function getStartPosition(startCharacter, stopCharacter, inclusive) {
     let before = doc.offsetAt(editor.selection.active);
@@ -131,7 +111,7 @@ function getStartPosition(startCharacter, stopCharacter, inclusive) {
             res = res - 1;
             res = res < 0 ? 0 : res;
         }
-        return doc.positionAt(res);
+        return doc.positionAt(res + 1);
     }
 }
 exports.getStartPosition = getStartPosition;
@@ -169,21 +149,20 @@ function getStopPosition(startCharacter, stopCharacter, inclusive) {
 }
 exports.getStopPosition = getStopPosition;
 function parseCommand(command) {
-    command = command.substring(0, 3);
     if (command.length >= 3) {
-        let text;
+        let text = getCurrentWord();
         let action = exports.actionBox.get(command.charAt(0));
-        let modifier = exports.modifierBox.get(command.charAt(1));
-        let textObject = exports.textObjectBox.get(command.charAt(2));
-        if (action && modifier && textObject) {
-            if (textObject === TextObject.line) {
+        let modifier = command.charAt(1);
+        let textObject = command.charAt(2);
+        if (action) {
+            if (textObject === 'l') {
                 text = getCurrentLine();
             }
-            else if (textObject === TextObject.word) {
+            else if (textObject === 'w') {
                 text = getCurrentWord();
             }
             else {
-                text = (new Section(command.charAt(2), modifier, textObject)).text;
+                text = (new Section(command.charAt(2), modifier)).text;
             }
             return { action, text };
         }
@@ -197,37 +176,80 @@ function parseCommand(command) {
 }
 exports.parseCommand = parseCommand;
 class Section {
-    constructor(boundryCharacter, modifier, textObject) {
+    constructor(textObject, modifier) {
         this.startCharacter = "";
         this.stopCharacter = "";
+        this.modifier = "";
         this.startPosition = editor.selection.active;
         this.stopPosition = editor.selection.active;
-        this.inclusive = modifier;
-        this.populateEdgeCharacters(boundryCharacter);
+        this.modifier = modifier;
+        this.populateEdgeCharacters(textObject);
         this.populateEdgePositions(textObject);
         this.text = getTextFromPositions(this.startPosition, this.stopPosition);
     }
-    populateEdgeCharacters(boundryCharacter) {
-        let box = exports.wrapperBox.get(boundryCharacter);
+    populateEdgeCharacters(textObject) {
+        let box = exports.wrapperBox.get(textObject);
         if (box) {
-            this.startCharacter, this.stopCharacter = box.start, box.stop;
+            this.startCharacter = box.start;
+            this.stopCharacter = box.stop;
         }
         else {
-            this.startCharacter, this.stopCharacter = boundryCharacter, boundryCharacter;
+            this.startCharacter = textObject;
+            this.stopCharacter = textObject;
         }
     }
     populateEdgePositions(textObject) {
-        if (textObject === TextObject.line) {
-            let line = getCurrentLine();
-            this.startPosition, this.stopPosition = line.start, line.stop;
+        if (this.modifier === 't') {
+            if (textObject === 'l') {
+                let line = getCurrentLine();
+                this.startPosition = editor.selection.active;
+                this.stopPosition = line.stop;
+            }
+            else if (textObject === 'w') {
+                let word = getCurrentWord();
+                this.startPosition = editor.selection.active;
+                this.stopPosition = word.stop;
+            }
+            else {
+                this.startPosition = editor.selection.active;
+                this.stopPosition = getStopPosition(this.startCharacter, this.startCharacter, false);
+            }
         }
-        else if (textObject === TextObject.word) {
-            let word = getCurrentWord();
-            this.startPosition, this.stopPosition = word.start, word.stop;
+        else if (this.modifier === 'f') {
+            if (textObject === 'l') {
+                let line = getCurrentLine();
+                this.startPosition = line.start;
+                this.stopPosition = editor.selection.active;
+            }
+            else if (textObject === 'w') {
+                let word = getCurrentWord();
+                this.startPosition = word.start;
+                this.stopPosition = editor.selection.active;
+            }
+            else {
+                this.startPosition = getStartPosition(this.startCharacter, this.stopCharacter, false);
+                this.stopPosition = editor.selection.active;
+            }
+        }
+        else if (this.modifier === 'a' || this.modifier === 'i') {
+            if (textObject === 'l') {
+                let line = getCurrentLine();
+                this.startPosition = line.start;
+                this.stopPosition = line.stop;
+            }
+            else if (textObject === 'w') {
+                let word = getCurrentWord();
+                this.startPosition = word.start;
+                this.stopPosition = word.stop;
+            }
+            else {
+                this.startPosition = getStartPosition(this.startCharacter, this.stopCharacter, this.modifier === 'a');
+                this.stopPosition = getStopPosition(this.startCharacter, this.stopCharacter, this.modifier === 'a');
+            }
         }
         else {
-            this.startPosition = getStartPosition(this.startCharacter, this.startCharacter, this.inclusive === Modifier.around);
-            this.stopPosition = getStopPosition(this.startCharacter, this.startCharacter, this.inclusive === Modifier.around);
+            this.startPosition = editor.selection.active;
+            this.stopPosition = editor.selection.active;
         }
     }
 }
